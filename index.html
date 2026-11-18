@@ -2280,6 +2280,7 @@ body{
       if (empty) empty.style.display = '';
     }
     if (persist !== false){ state.photos[id] = src || ''; save(); }
+    syncArrows();
   }
 
   /* 空字符串等于没放：先清掉，免得那一格一直挂着“待放入” */
@@ -2349,6 +2350,7 @@ body{
       lbCap.textContent = '这一格还空着。点“换一张”，从手机里挑一张放进来。';
     }
     document.getElementById('lbClear').style.display = curSrc ? '' : 'none';
+    syncArrows();
     lb.classList.add('open');
     lb.setAttribute('aria-hidden', 'false');
   }
@@ -2365,28 +2367,27 @@ body{
   });
 
   /* 灯箱里能翻的，只有你自己贴过的照片；内置样例图不再出现在这里 */
+  /* 能翻的，是墙上真正有照片的那几格：内置的和你自己贴的都算 */
   function myPool(){
     var arr = [];
-    Object.keys(state.photos).forEach(function(k){
-      var v = state.photos[k];
-      if (v && /^data:image\//.test(String(v)) && String(v).length >= 200){
-        arr.push({ id: parseInt(k, 10), src: String(v) });
-      }
-    });
-    arr.sort(function(a, b){ return a.id - b.id; });
+    for (var i = 0; i < 5; i++){
+      var s = srcOf(i);
+      if (s && String(s).length >= 200){ arr.push({ id: i, src: String(s) }); }
+    }
     return arr;
+  }
+
+  /* 只有一张照片时，左右两个箭头就别摆在那儿了 */
+  function syncArrows(){
+    var show = myPool().length > 1;
+    var pv = document.getElementById('lbPrev'), nx = document.getElementById('lbArrowNext');
+    if (pv) pv.style.display = show ? '' : 'none';
+    if (nx) nx.style.display = show ? '' : 'none';
   }
 
   function stepPhoto(dir){
     var pool = myPool();
-    if (pool.length === 0){
-      lbCap.textContent = '这一格还空着，点“换一张”放一张进来。';
-      return;
-    }
-    if (pool.length === 1){
-      lbCap.textContent = '这台电脑里只放着这一张你的照片。想多放几张，就点“换一张”。';
-      return;
-    }
+    if (pool.length < 2){ syncArrows(); return; }
     var idx = -1;
     for (var i = 0; i < pool.length; i++){ if (pool[i].id === curId) idx = i; }
     if (idx < 0) idx = dir > 0 ? -1 : 0;
