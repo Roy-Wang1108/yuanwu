@@ -1732,10 +1732,13 @@ body{
     var bFaceEl  = document.getElementById('balloonFace');
     var bNamesEl = document.getElementById('balloonNames');
     var bBcx = 846, bBry = 54;      /* 球心横坐标、球的水平半径（viewBox 单位） */
-    var bBands = 26;                /* 一整圈 26 条条纹 */
+    var bCoarse = !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+    var bBands = bCoarse ? 14 : 26; /* 一整圈条纹数，手机少一半 */
     var bWid = 360 / bBands;        /* 每条占 13.85° */
     var bPhi = 0;                   /* 累计转角，度；不设上下限 */
     var bDragging = false, bLastX = 0, bMoved = 0, bBlockClick = false;
+    /* 手机：条纹少一半、每帧放宽到 30ms，转起来才不卡；字照常显示 */
+    var bTickMs = bCoarse ? 30 : 14;
     var NS = 'http://www.w3.org/2000/svg';
 
     /* 把原来写死的条纹换成可按角度重排的那一组 */
@@ -1786,8 +1789,7 @@ body{
       }
 
       /* 球面上的地名：按各自经度摆位置，转到背面就收起来 */
-      if (bNamesEl) bNamesEl.style.opacity = bSkipNames ? '0' : '';
-      if (bNamesEl && !bSkipNames){
+      if (bNamesEl){
         for (var ni = 0; ni < bNamesEl.children.length; ni++){
           var nl = bNamesEl.children[ni];
           var L  = parseFloat(nl.getAttribute('data-lam'));
@@ -1814,12 +1816,12 @@ body{
 
     balloonDragEl.addEventListener('pointerdown', function(e){
       bDragging = true; bLastX = e.clientX; bMoved = 0; bBlockClick = false;
-      /* 手机上转球时先把球面上的地名收起来，省掉一半每帧开销，松手再显影 */
-      if (e.pointerType === 'touch') bSkipNames = true;
+      /* 转起来时先卸掉球面地名的裁剪：省一次遮罩计算，字照样跟着转 */
+      if (bCoarse && bNamesEl) bNamesEl.removeAttribute('clip-path');
       balloonDragEl.style.cursor = 'grabbing';
       try { balloonDragEl.setPointerCapture(e.pointerId); } catch(err){}
     });
-    var bPend = 0, bLastPaint = 0, bSkipNames = false;
+    var bPend = 0, bLastPaint = 0;
     window.addEventListener('pointermove', function(e){
       if (!bDragging) return;
       var dx = e.clientX - bLastX;
@@ -1829,7 +1831,7 @@ body{
       bPend += dx * 1.1;        /* 拖 330px 正好一整圈，再多也能继续转 */
       /* 触屏一帧会来好几次 move：攒起来每 14ms 画一次，转起来才顺 */
       var now = (window.performance && performance.now) ? performance.now() : Date.now();
-      if (now - bLastPaint < 14) return;
+      if (now - bLastPaint < bTickMs) return;
       bLastPaint = now;
       bPhi += bPend; bPend = 0;
       bPaint();
@@ -1838,7 +1840,7 @@ body{
       if (!bDragging) return;
       bDragging = false;
       balloonDragEl.style.cursor = 'grab';
-      bSkipNames = false;
+      if (bCoarse && bNamesEl) bNamesEl.setAttribute('clip-path', 'url(#balloonBody)');
       if (bPend){ bPhi += bPend; bPend = 0; }
       bPaint();
     });
