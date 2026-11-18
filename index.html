@@ -83,6 +83,10 @@ body{
 #note.is-active{color:var(--cream)}
 #note:empty{display:none}
 .note-bar:has(#note:empty){display:none;padding:0;min-height:0}
+.pub-note{
+  margin:16px 4px 0;text-align:center;font-size:12px;line-height:1.9;
+  letter-spacing:.09em;color:var(--text-soft);opacity:.62;
+}
 #addBtn{
   flex:0 0 auto;
   font-family:var(--sans);
@@ -1220,6 +1224,7 @@ body{
                 <text data-lam="135" data-r="40" x="846" y="564" text-anchor="middle">Changsha</text>
                 <text data-lam="225" data-r="40" x="846" y="564" text-anchor="middle">Xiamen</text>
                 <text data-lam="315" data-r="40" x="846" y="564" text-anchor="middle">Macau</text>
+                <text data-lam="0" data-r="27" x="846" y="580" text-anchor="middle">Qingyuan</text>
               </g>
               <!-- 那颗心：Hug U（印在球面上，球一转它就跟着转） -->
               <g id="balloonFace" clip-path="url(#balloonBody)">
@@ -1350,7 +1355,7 @@ body{
       <rect x="46" y="34" width="908" height="714" filter="url(#grainFilter)" opacity=".03" pointer-events="none"/>
 
       <!-- ===== 歌曲墙：六张碟挂在窗玻璃前，能拖 ===== -->
-      <g id="songWall">          <g class="cd" data-song="管他的公路尽头" data-file="王源 - 管他的公路尽头.mp3" data-fallback="guandegonglujintou.mp3" data-color="#8B4AA8"
+      <g id="songWall">          <g class="cd" data-song="管他的公路尽头" data-file="管他的公路尽头1108.mp3" data-fallback="guandegonglujintou.mp3" data-color="#8B4AA8"
              data-hx="148" data-hy="166" transform="translate(148,166)">
             <circle r="24.6" fill="#20241F"/>
             <image x="-23.2" y="-23.2" width="46.4" height="46.4" clip-path="url(#cdClip)"
@@ -1362,7 +1367,7 @@ body{
             <ellipse cx="-3" cy="-16" rx="15" ry="4.6" fill="#FFFFFF" opacity=".12"/>
             <text y="37" text-anchor="middle" font-family="Songti SC,serif" font-size="8" fill="#3F5A46" letter-spacing=".5">管他的公路尽头</text>
           </g>
-          <g class="cd" data-song="骄傲" data-file="骄傲.mp3" data-fallback="jiaoao.mp3" data-color="#C62626"
+          <g class="cd" data-song="骄傲" data-file="骄傲1108.mp3" data-fallback="jiaoao.mp3" data-color="#C62626"
              data-hx="244" data-hy="166" transform="translate(244,166)">
             <circle r="24.6" fill="#20241F"/>
             <image x="-23.2" y="-23.2" width="46.4" height="46.4" clip-path="url(#cdClip)"
@@ -1374,7 +1379,7 @@ body{
             <ellipse cx="-3" cy="-16" rx="15" ry="4.6" fill="#FFFFFF" opacity=".12"/>
             <text y="37" text-anchor="middle" font-family="Songti SC,serif" font-size="8" fill="#3F5A46" letter-spacing=".5">骄傲</text>
           </g>
-          <g class="cd" data-song="因为遇见你" data-file="因为遇见你.mp3" data-fallback="yinweiyujianni.mp3" data-color="#C6A276"
+          <g class="cd" data-song="因为遇见你" data-file="因为遇见你1108.mp3" data-fallback="yinweiyujianni.mp3" data-color="#C6A276"
              data-hx="148" data-hy="244" transform="translate(148,244)">
             <circle r="24.6" fill="#20241F"/>
             <image x="-23.2" y="-23.2" width="46.4" height="46.4" clip-path="url(#cdClip)"
@@ -1386,7 +1391,7 @@ body{
             <ellipse cx="-3" cy="-16" rx="15" ry="4.6" fill="#FFFFFF" opacity=".12"/>
             <text y="37" text-anchor="middle" font-family="Songti SC,serif" font-size="8" fill="#3F5A46" letter-spacing=".5">因为遇见你</text>
           </g>
-          <g class="cd" data-song="十二封信" data-file="十二封信.mp3" data-fallback="shierfengxin.mp3" data-color="#C0532E"
+          <g class="cd" data-song="十二封信" data-file="十二封信1108.mp3" data-fallback="shierfengxin.mp3" data-color="#C0532E"
              data-hx="244" data-hy="244" transform="translate(244,244)">
             <circle r="24.6" fill="#20241F"/>
             <image x="-23.2" y="-23.2" width="46.4" height="46.4" clip-path="url(#cdClip)"
@@ -1398,7 +1403,7 @@ body{
             <ellipse cx="-3" cy="-16" rx="15" ry="4.6" fill="#FFFFFF" opacity=".12"/>
             <text y="37" text-anchor="middle" font-family="Songti SC,serif" font-size="8" fill="#3F5A46" letter-spacing=".5">十二封信</text>
           </g>
-          <g class="cd" data-song="我怀念的" data-file="我怀念的.mp3" data-fallback="wohuainiande.mp3" data-color="#2E6DB4"
+          <g class="cd" data-song="我怀念的" data-file="我怀念的1108.mp3" data-fallback="wohuainiande.mp3" data-color="#2E6DB4"
              data-hx="148" data-hy="322" transform="translate(148,322)">
             <circle r="24.6" fill="#20241F"/>
             <image x="-23.2" y="-23.2" width="46.4" height="46.4" clip-path="url(#cdClip)"
@@ -1410,7 +1415,7 @@ body{
             <ellipse cx="-3" cy="-16" rx="15" ry="4.6" fill="#FFFFFF" opacity=".12"/>
             <text y="37" text-anchor="middle" font-family="Songti SC,serif" font-size="8" fill="#3F5A46" letter-spacing=".5">我怀念的</text>
           </g>
-          <g class="cd" data-song="雪崩" data-file="雪崩.mp3" data-fallback="xuebeng.mp3" data-color="#2A3E60"
+          <g class="cd" data-song="雪崩" data-file="雪崩1108.mp3" data-fallback="xuebeng.mp3" data-color="#2A3E60"
              data-hx="244" data-hy="322" transform="translate(244,322)">
             <circle r="24.6" fill="#20241F"/>
             <image x="-23.2" y="-23.2" width="46.4" height="46.4" clip-path="url(#cdClip)"
@@ -1436,6 +1441,8 @@ body{
     <p id="note"></p>
     <input type="file" id="fileRestore" accept="application/json,.json" hidden>
   </div>
+
+  <p class="pub-note">非商业用途 · 粉丝自用 · 音乐仅作片段试听，版权归王源及原版权方所有</p>
 
   <div class="lightbox" id="lightbox" aria-hidden="true">
     <div class="lb-stage">
@@ -1582,6 +1589,7 @@ body{
           </g>
         </svg>
       </div>
+
 </main>
 
 <script>
