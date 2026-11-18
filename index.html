@@ -528,6 +528,10 @@ body{
   body.dragging #grainLayer{display:none}
   body.dragging svg *{animation-play-state:paused !important}
   #songWall .cd{will-change:transform;touch-action:none}
+  /* 触屏拖动时的浮层小碟：独立图层，只做位移，不牵动整张画 */
+  .cd-ghost{position:fixed;left:0;top:0;border-radius:50%;background-size:cover;
+    background-position:center;pointer-events:none;z-index:9999;
+    will-change:transform;box-shadow:0 8px 20px rgba(0,0,0,.26)}
 </style>
 </head>
 <body>
@@ -1782,7 +1786,8 @@ body{
       }
 
       /* 球面上的地名：按各自经度摆位置，转到背面就收起来 */
-      if (bNamesEl){
+      if (bNamesEl) bNamesEl.style.opacity = bSkipNames ? '0' : '';
+      if (bNamesEl && !bSkipNames){
         for (var ni = 0; ni < bNamesEl.children.length; ni++){
           var nl = bNamesEl.children[ni];
           var L  = parseFloat(nl.getAttribute('data-lam'));
@@ -1809,10 +1814,12 @@ body{
 
     balloonDragEl.addEventListener('pointerdown', function(e){
       bDragging = true; bLastX = e.clientX; bMoved = 0; bBlockClick = false;
+      /* 手机上转球时先把球面上的地名收起来，省掉一半每帧开销，松手再显影 */
+      if (e.pointerType === 'touch') bSkipNames = true;
       balloonDragEl.style.cursor = 'grabbing';
       try { balloonDragEl.setPointerCapture(e.pointerId); } catch(err){}
     });
-    var bPend = 0, bLastPaint = 0;
+    var bPend = 0, bLastPaint = 0, bSkipNames = false;
     window.addEventListener('pointermove', function(e){
       if (!bDragging) return;
       var dx = e.clientX - bLastX;
@@ -1831,7 +1838,9 @@ body{
       if (!bDragging) return;
       bDragging = false;
       balloonDragEl.style.cursor = 'grab';
-      if (bPend){ bPhi += bPend; bPend = 0; bPaint(); }
+      bSkipNames = false;
+      if (bPend){ bPhi += bPend; bPend = 0; }
+      bPaint();
     });
     /* 拖过之后手一松，别顺手把灯又点亮 */
     balloonDragEl.addEventListener('click', function(e){
@@ -2116,6 +2125,70 @@ body{
       if (!m) m = svgEl.getScreenCTM();
       return p.matrixTransform(m.inverse());
     }
+        /* 手指拖动时，别让页面跟着一起滚（否则系统会直接取消拖动） */
+    document.addEventListener('touchmove', function(e){
+      if (drag) e.preventDefault();
+    }, {passive:false});
+
+    function applyPos(){
+      if (!drag) return;
+      var cd = drag.cd;
+      var pt = svgEl.createSVGPoint();
+      pt.x = drag.ex; pt.y = drag.ey;
+      var q = drag.m ? pt.matrixTransform(drag.m) : pt.matrixTransform(wallEl.getScreenCTM().inverse());
+      var nx = q.x - drag.dx, ny = q.y - drag.dy;
+      cd.setAttribute('data-x', nx);
+      cd.setAttribute('data-y', ny);
+      cd.setAttribute('transform', 'translate(' + nx + ',' + ny + ')');
+    }
+
+    function endDrag(cx, cy, ptype){
+      if (!drag) return;
+      var cd = drag.cd;
+      if (typeof cx === 'number'){ drag.ex = cx; drag.ey = cy; }
+      var nx, ny;
+      if (drag.ghost){
+        var pt = svgEl.createSVGPoint();
+        pt.x = drag.ex; pt.y = drag.ey;
+        var q = drag.m ? pt.matrixTransform(drag.m) : pt.matrixTransform(wallEl.getScreenCTM().inverse());
+        nx = q.x - drag.dx; ny = q.y - drag.dy;
+        drag.ghost.remove();
+        cd.style.visibility = '';
+      } else {
+        applyPos();
+        nx = parseFloat(cd.getAttribute('data-x'));
+        ny = parseFloat(cd.getAttribute('data-y'));
+      }
+      if (drag.raf) cancelAnimationFrame(drag.raf);
+      var kind = ptype || drag.pt;
+      drag = null;
+      document.body.classList.remove('dragging');
+      cd.classList.remove('dragging');
+      var d = Math.sqrt(Math.pow(nx - 400, 2) + Math.pow(ny - 376, 2));
+      /* 手指挡住碟，很难看准，触屏给的落位范围放宽一些 */
+      var hit = (kind === 'touch') ? 142 : 84;
+      if (d < hit){
+        cd.setAttribute('data-x', 400);
+        cd.setAttribute('data-y', 376);
+        cd.setAttribute('transform', 'translate(400,376)');
+        playSong(cd.getAttribute('data-song'), cd.getAttribute('data-file'), cd.getAttribute('data-color'), cd.getAttribute('data-fallback'));
+      } else {
+        say('再往唱机那边拖一点。');
+      }
+      snapHome(cd, true);
+    }
+
+    function cancelDrag(){
+      if (!drag) return;
+      var cd = drag.cd;
+      if (drag.ghost){ drag.ghost.remove(); cd.style.visibility = ''; }
+      if (drag.raf) cancelAnimationFrame(drag.raf);
+      drag = null;
+      document.body.classList.remove('dragging');
+      cd.classList.remove('dragging');
+      snapHome(cd, true);
+    }
+
     wallEl.querySelectorAll('.cd').forEach(function(cd){
       cd.addEventListener('pointerdown', function(e){
         e.stopPropagation();
@@ -2123,61 +2196,59 @@ body{
         var p = toSvg(e);
         var mInv = null;
         try{ mInv = wallEl.getScreenCTM().inverse(); }catch(err){}
-        drag = { cd: cd, dx: p.x - parseFloat(cd.getAttribute('data-x') || cd.getAttribute('data-hx')),
+        drag = { cd: cd,
+                 dx: p.x - parseFloat(cd.getAttribute('data-x') || cd.getAttribute('data-hx')),
                  dy: p.y - parseFloat(cd.getAttribute('data-y') || cd.getAttribute('data-hy')),
-                 m: mInv, raf: 0, ex: e.clientX, ey: e.clientY };
+                 m: mInv, raf: 0, ex: e.clientX, ey: e.clientY,
+                 sx: e.clientX, sy: e.clientY, ghost: null, pt: e.pointerType };
+        /* 触屏：碟提到页面最外层的独立小图层跟着手走，底下整张画一帧都不重绘 */
+        if (e.pointerType === 'touch'){
+          var face = cd.querySelector('image');
+          var disc = cd.querySelector('circle');
+          if (face && disc){
+            var rr = disc.getBoundingClientRect();
+            var g = document.createElement('div');
+            g.className = 'cd-ghost';
+            g.style.width = rr.width + 'px';
+            g.style.height = rr.height + 'px';
+            g.style.left = rr.left + 'px';
+            g.style.top = rr.top + 'px';
+            g.style.backgroundImage = 'url("' + face.getAttribute('href') + '")';
+            document.body.appendChild(g);
+            drag.ghost = g; drag.gx = rr.left; drag.gy = rr.top;
+            cd.style.visibility = 'hidden';
+          }
+        }
         document.body.classList.add('dragging');
         cd.setAttribute('data-x', p.x - drag.dx);
         cd.setAttribute('data-y', p.y - drag.dy);
         cd.classList.add('dragging');
         try{ cd.setPointerCapture(e.pointerId); }catch(err){}
       });
-      cd.addEventListener('pointermove', function(e){
-        if (!drag || drag.cd !== cd) return;
-        drag.ex = e.clientX; drag.ey = e.clientY;
-        /* 触屏一帧会来好几次 move：最多每 14ms 落地一次，手才跟得上 */
-        var now = (window.performance && performance.now) ? performance.now() : Date.now();
-        if (now - (drag.last || 0) < 14) return;
-        drag.last = now;
-        var pt = svgEl.createSVGPoint();
-        pt.x = drag.ex; pt.y = drag.ey;
-        var q = drag.m ? pt.matrixTransform(drag.m) : pt.matrixTransform(wallEl.getScreenCTM().inverse());
-        var nx = q.x - drag.dx, ny = q.y - drag.dy;
-        cd.setAttribute('data-x', nx);
-        cd.setAttribute('data-y', ny);
-        cd.setAttribute('transform', 'translate(' + nx + ',' + ny + ')');
-      });
-      cd.addEventListener('pointercancel', function(){
-        if (!drag || drag.cd !== cd) return;
-        if (drag.raf) cancelAnimationFrame(drag.raf);
-        drag = null;
-        document.body.classList.remove('dragging');
-        cd.classList.remove('dragging');
-        snapHome(cd, false);
-      });
-      cd.addEventListener('pointerup', function(e){
-        if (!drag || drag.cd !== cd) return;
-        var nx = parseFloat(cd.getAttribute('data-x'));
-        var ny = parseFloat(cd.getAttribute('data-y'));
-        if (drag.raf) cancelAnimationFrame(drag.raf);
-        drag = null;
-        document.body.classList.remove('dragging');
-        cd.classList.remove('dragging');
-        var d = Math.sqrt(Math.pow(nx - 400, 2) + Math.pow(ny - 376, 2));
-        /* 手指挡住碟，很难看准，触屏给的落位范围放宽一些 */
-        var hit = (e.pointerType === 'touch') ? 142 : 84;
-        if (d < hit){
-          cd.setAttribute('data-x', 400);
-          cd.setAttribute('data-y', 376);
-          cd.setAttribute('transform', 'translate(400,376)');
-          playSong(cd.getAttribute('data-song'), cd.getAttribute('data-file'), cd.getAttribute('data-color'), cd.getAttribute('data-fallback'));
-        } else {
-          say('再往唱机那边拖一点。');
-        }
-        snapHome(cd, true);
-      });
     });
-    /* 窗口放大缩小、页面缩放都不许动碟 —— 只有手拖的时候才动 */
+
+    /* 移动和松手都挂在 window 上：手指滑出那张小碟也照样跟着走 */
+    window.addEventListener('pointermove', function(e){
+      if (!drag) return;
+      drag.ex = e.clientX; drag.ey = e.clientY;
+      if (drag.ghost){
+        drag.ghost.style.transform = 'translate3d(' +
+          (e.clientX - drag.sx) + 'px,' + (e.clientY - drag.sy) + 'px,0)';
+        return;
+      }
+      var now = (window.performance && performance.now) ? performance.now() : Date.now();
+      if (now - (drag.last || 0) < 14) return;
+      drag.last = now;
+      applyPos();
+    });
+    window.addEventListener('pointerup', function(e){
+      if (!drag) return;
+      endDrag(e.clientX, e.clientY, e.pointerType);
+    });
+    window.addEventListener('pointercancel', cancelDrag);
+    window.addEventListener('blur', cancelDrag);
+
+/* 窗口放大缩小、页面缩放都不许动碟 —— 只有手拖的时候才动 */
     window.addEventListener('resize', function(){
       wallEl.querySelectorAll('.cd').forEach(function(cd){
         /* 碟用的是 SVG 自身坐标，缩放本来就不会偏；只有真的被拖离过才补一次位，避免每帧重算 */
