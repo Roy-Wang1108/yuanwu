@@ -517,6 +517,17 @@ body{
   88%{opacity:.8}
   100%{transform:translate(calc(var(--sway,16px) * -1),-198px) rotate(-6deg) scale(.9);opacity:0}
 }
+  /* 小屏 / 触屏：先把最吃力的几样按住，别让动效跟手指抢帧 */
+  @media (max-width: 820px), (hover: none) and (pointer: coarse){
+    #grainLayer{display:none}
+    .rib, .wall-sweep, .bulb, .lamp-glow, .lamp-body, .plush-a, .plush-b,
+    .steam, .light-patch, .balloon-bob, .balloon-turn, #plantLeaves,
+    #pinwheelBlades, #photoWall .photo, #eq .bar{animation:none !important}
+  }
+  /* 手在拖碟的那几秒，所有动效和颗粒层一起让路 */
+  body.dragging #grainLayer{display:none}
+  body.dragging svg *{animation-play-state:paused !important}
+  #songWall .cd{will-change:transform;touch-action:none}
 </style>
 </head>
 <body>
@@ -1352,7 +1363,7 @@ body{
 
       <!-- 空气：一层暖光 + 一层纸颗粒，让整间屋子不那么平 -->
       <rect x="58" y="50" width="884" height="682" fill="url(#roomGlow)" opacity=".22" pointer-events="none"/>
-      <rect x="46" y="34" width="908" height="714" filter="url(#grainFilter)" opacity=".03" pointer-events="none"/>
+      <rect id="grainLayer" x="46" y="34" width="908" height="714" filter="url(#grainFilter)" opacity=".03" pointer-events="none"/>
 
       <!-- ===== 歌曲墙：六张碟挂在窗玻璃前，能拖 ===== -->
       <g id="songWall">          <g class="cd" data-song="管他的公路尽头" data-file="管他的公路尽头1108.mp3" data-fallback="guandegonglujintou.mp3" data-color="#8B4AA8"
@@ -1801,19 +1812,26 @@ body{
       balloonDragEl.style.cursor = 'grabbing';
       try { balloonDragEl.setPointerCapture(e.pointerId); } catch(err){}
     });
+    var bPend = 0, bLastPaint = 0;
     window.addEventListener('pointermove', function(e){
       if (!bDragging) return;
       var dx = e.clientX - bLastX;
       bLastX = e.clientX;
       bMoved += Math.abs(dx);
       if (bMoved > 6) bBlockClick = true;
-      bPhi += dx * 1.1;         /* 拖 330px 正好一整圈，再多也能继续转 */
+      bPend += dx * 1.1;        /* 拖 330px 正好一整圈，再多也能继续转 */
+      /* 触屏一帧会来好几次 move：攒起来每 14ms 画一次，转起来才顺 */
+      var now = (window.performance && performance.now) ? performance.now() : Date.now();
+      if (now - bLastPaint < 14) return;
+      bLastPaint = now;
+      bPhi += bPend; bPend = 0;
       bPaint();
     });
     window.addEventListener('pointerup', function(){
       if (!bDragging) return;
       bDragging = false;
       balloonDragEl.style.cursor = 'grab';
+      if (bPend){ bPhi += bPend; bPend = 0; bPaint(); }
     });
     /* 拖过之后手一松，别顺手把灯又点亮 */
     balloonDragEl.addEventListener('click', function(e){
@@ -2103,8 +2121,12 @@ body{
         e.stopPropagation();
         e.preventDefault();
         var p = toSvg(e);
+        var mInv = null;
+        try{ mInv = wallEl.getScreenCTM().inverse(); }catch(err){}
         drag = { cd: cd, dx: p.x - parseFloat(cd.getAttribute('data-x') || cd.getAttribute('data-hx')),
-                 dy: p.y - parseFloat(cd.getAttribute('data-y') || cd.getAttribute('data-hy')) };
+                 dy: p.y - parseFloat(cd.getAttribute('data-y') || cd.getAttribute('data-hy')),
+                 m: mInv, raf: 0, ex: e.clientX, ey: e.clientY };
+        document.body.classList.add('dragging');
         cd.setAttribute('data-x', p.x - drag.dx);
         cd.setAttribute('data-y', p.y - drag.dy);
         cd.classList.add('dragging');
@@ -2112,20 +2134,42 @@ body{
       });
       cd.addEventListener('pointermove', function(e){
         if (!drag || drag.cd !== cd) return;
-        var p = toSvg(e);
-        var nx = p.x - drag.dx, ny = p.y - drag.dy;
+        drag.ex = e.clientX; drag.ey = e.clientY;
+        /* 触屏一帧会来好几次 move：最多每 14ms 落地一次，手才跟得上 */
+        var now = (window.performance && performance.now) ? performance.now() : Date.now();
+        if (now - (drag.last || 0) < 14) return;
+        drag.last = now;
+        var pt = svgEl.createSVGPoint();
+        pt.x = drag.ex; pt.y = drag.ey;
+        var q = drag.m ? pt.matrixTransform(drag.m) : pt.matrixTransform(wallEl.getScreenCTM().inverse());
+        var nx = q.x - drag.dx, ny = q.y - drag.dy;
         cd.setAttribute('data-x', nx);
         cd.setAttribute('data-y', ny);
         cd.setAttribute('transform', 'translate(' + nx + ',' + ny + ')');
+      });
+      cd.addEventListener('pointercancel', function(){
+        if (!drag || drag.cd !== cd) return;
+        if (drag.raf) cancelAnimationFrame(drag.raf);
+        drag = null;
+        document.body.classList.remove('dragging');
+        cd.classList.remove('dragging');
+        snapHome(cd, false);
       });
       cd.addEventListener('pointerup', function(e){
         if (!drag || drag.cd !== cd) return;
         var nx = parseFloat(cd.getAttribute('data-x'));
         var ny = parseFloat(cd.getAttribute('data-y'));
+        if (drag.raf) cancelAnimationFrame(drag.raf);
         drag = null;
+        document.body.classList.remove('dragging');
         cd.classList.remove('dragging');
         var d = Math.sqrt(Math.pow(nx - 400, 2) + Math.pow(ny - 376, 2));
-        if (d < 74){
+        /* 手指挡住碟，很难看准，触屏给的落位范围放宽一些 */
+        var hit = (e.pointerType === 'touch') ? 142 : 84;
+        if (d < hit){
+          cd.setAttribute('data-x', 400);
+          cd.setAttribute('data-y', 376);
+          cd.setAttribute('transform', 'translate(400,376)');
           playSong(cd.getAttribute('data-song'), cd.getAttribute('data-file'), cd.getAttribute('data-color'), cd.getAttribute('data-fallback'));
         } else {
           say('再往唱机那边拖一点。');
